@@ -650,6 +650,44 @@ static struct platform_device bcm2835_thermal_device = {
 	.name = "bcm2835_thermal",
 };
 
+#ifdef CONFIG_SND_BCM2708_SOC_MODULE
+static struct platform_device bcm2708_pcm_device = {
+	.name = "bcm2708-pcm-audio",
+	.id = 0,
+	.num_resources = 0,
+};
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
+static struct resource bcm2708_i2s_resources[] = {
+	{
+		.start = I2S_BASE,
+		.end = I2S_BASE + 0x20,
+		.flags = IORESOURCE_MEM,
+	},
+        {
+		.start = PCM_CLOCK_BASE,
+		.end = PCM_CLOCK_BASE + 0x02,
+		.flags = IORESOURCE_MEM,
+	}
+};
+
+static struct platform_device bcm2708_i2s_device = {
+	.name = "bcm2708-i2s",
+	.id = 0,
+	.num_resources = ARRAY_SIZE(bcm2708_i2s_resources),
+	.resource = bcm2708_i2s_resources,
+};
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_MBED_MODULE
+static struct platform_device snd_rpi_mbed_device = {
+	.name = "snd-rpi-mbed",
+	.id = 0,
+	.num_resources = 0,
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -739,6 +777,18 @@ void __init bcm2708_init(void)
 
 	bcm_register_device(&bcm2835_hwmon_device);
 	bcm_register_device(&bcm2835_thermal_device);
+
+#ifdef CONFIG_SND_BCM2708_SOC_MODULE
+	bcm_register_device(&bcm2708_i2s_device);
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_I2S_MODULE
+	bcm_register_device(&bcm2708_pcm_device);
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_MBED_MODULE
+	bcm_register_device(&snd_rpi_mbed_device);
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
 		struct amba_device *d = amba_devs[i];
