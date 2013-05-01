@@ -12,10 +12,18 @@ config SND_BCM2708_SOC
 	  to select the audio interfaces to support below.
 
 config SND_BCM2708_SOC_RPI_CODEC_MBED
-	tristate "AudioCODEC for mbed (TLV320AIC32B)"
+	tristate "Support for AudioCODEC for mbed (TLV320AIC32B)"
 	depends on SND_BCM2708_SOC
 	select SND_BCM2708_SOC_I2S
 	select SND_SOC_TLV320AIC3X
 	help
 	  Say Y if you want to add support for AudioCODEC for mbed (TLV320AIC32B)
+
+config SND_BCM2708_SOC_RPI_CODEC_TDA1541A
+	tristate "Support for TDA1541A"
+	depends on SND_BCM2708_SOC
+	select SND_BCM2708_SOC_I2S
+	select SND_SOC_TDA1541A
+	help
+	  Say Y if you want to add support for TDA1541A 
 
