@@ -688,6 +688,14 @@ static struct platform_device snd_rpi_mbed_device = {
 };
 #endif
 
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_TDA1541A_MODULE
+static struct platform_device snd_rpi_tda1541a_device = {
+	.name = "snd-rpi-tda1541a",
+	.id = 0,
+	.num_resources = 0,
+};
+#endif
+
 int __init bcm_register_device(struct platform_device *pdev)
 {
 	int ret;
@@ -788,6 +796,10 @@ void __init bcm2708_init(void)
 
 #ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_MBED_MODULE
 	bcm_register_device(&snd_rpi_mbed_device);
+#endif
+
+#ifdef CONFIG_SND_BCM2708_SOC_RPI_CODEC_TDA1541A_MODULE
+	bcm_register_device(&snd_rpi_tda1541a_device);
 #endif
 
 	for (i = 0; i < ARRAY_SIZE(amba_devs); i++) {
