@@ -324,11 +324,14 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
         struct bcm2708_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
 
 	unsigned int sampling_rate = params_rate(params);
-	unsigned int data_length, data_delay, half_frame, master;
+	unsigned int data_length, data_delay, half_frame;
 	unsigned int ch1pos, ch2pos, mode, format;
 	unsigned int mash = BCM2708_CLK_MASH_1;
 	unsigned int divi, divf;
 	int clk_src = -1;
+	unsigned int master = dev->fmt & SND_SOC_DAIFMT_MASTER_MASK;
+	unsigned int bit_master = (master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBS_CFM);
+	unsigned int frame_master = (master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBM_CFS);
 
 	/* should this still be running stop it */
 	bcm2708_i2s_stop_clock(dev);
@@ -348,11 +351,25 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		data_length = 16;
-		half_frame = 20;
+		if(frame_master)
+		{
+			half_frame = 20;
+		}
+		else
+		{
+			half_frame = 32;
+		}
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		data_length = 32;
-		half_frame = 40;
+		if(frame_master)
+		{
+			half_frame = 40;
+		}
+		else
+		{
+			half_frame = 64;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -378,9 +395,7 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	 * variance. To minimize that it is best to have the fastest
 	 * clock here. That is PLLD with 500 MHz.
 	 */
-	master = dev->fmt & SND_SOC_DAIFMT_MASTER_MASK;
-	if(sampling_rate % 8000 == 0 &&
-		(master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBS_CFM))
+	if(sampling_rate % 8000 == 0 && bit_master)
 	{
 		clk_src = BCM2708_CLK_SRC_OSC;
 		mash = BCM2708_CLK_MASH_0;
@@ -433,6 +448,7 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	ch1pos = data_delay;
 	ch2pos = half_frame+data_delay;
+printk(KERN_EMERG "ch1pos %i ch2pos %i\n",ch1pos,ch2pos);
 
 	switch(params_channels(params))
 	{
