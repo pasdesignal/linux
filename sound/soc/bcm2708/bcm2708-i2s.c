@@ -511,23 +511,27 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	/* invert clocks? */
+	/* 
+	 * Invert clocks? 
+	 * 
+	 * The BCM approach seems to be inverted to the classical I2S approach.
+	 */
 	switch (dev->fmt & SND_SOC_DAIFMT_INV_MASK) {
 	case SND_SOC_DAIFMT_NB_NF:
-		/* none */
+		/* none - therefore, both for BCM */
+		mode |= BCM2708_I2S_CLKI;
+		mode |= BCM2708_I2S_FSI;
 		break;
 	case SND_SOC_DAIFMT_IB_IF:
-		/* both */
-		mode |= BCM2708_I2S_CLKI;
-		mode |= BCM2708_I2S_FSI;
+		/* both - therefore, none for BCM*/
 		break;
 	case SND_SOC_DAIFMT_NB_IF:
-		/* invert frame sync */
-		mode |= BCM2708_I2S_FSI;
+		/* invert only frame sync - therefore, invert only bit clock for BCM */
+		mode |= BCM2708_I2S_CLKI;
 		break;
 	case SND_SOC_DAIFMT_IB_NF:
-		/* invert bit clock */
-		mode |= BCM2708_I2S_CLKI;
+		/* invert only bit clock - therefore, invert only frame sync for BCM*/
+		mode |= BCM2708_I2S_FSI;
 		break;
 	default:
 		return -EINVAL;
