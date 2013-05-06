@@ -327,7 +327,7 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	unsigned int data_length, data_delay, half_frame;
 	unsigned int ch1pos, ch2pos, mode, format;
 	unsigned int mash = BCM2708_CLK_MASH_1;
-	unsigned int divi, divf;
+	unsigned int divi, divf, target_frequency;
 	int clk_src = -1;
 	unsigned int master = dev->fmt & SND_SOC_DAIFMT_MASTER_MASK;
 	unsigned int bit_master = (master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBS_CFM);
@@ -344,73 +344,65 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	/*
 	 * Adjust the data length according to the format.
-	 * The half frame is slightly larger, because of the
-	 * I2S bit delay. Furthermore, it has to be an integer 
+	 * We prefill the half frame length with an integer 
 	 * divider of 2400 as explained at the clock settings.
+	 * Maybe it is overwritten there, if the Integer mode 
+	 * does not apply.
 	 */
 	switch (params_format(params)) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		data_length = 16;
-		if(frame_master)
-		{
-			half_frame = 20;
-		}
-		else
-		{
-			half_frame = 32;
-		}
+		half_frame = 20;
 		break;
 	case SNDRV_PCM_FORMAT_S32_LE:
 		data_length = 32;
-		if(frame_master)
-		{
-			half_frame = 40;
-		}
-		else
-		{
-			half_frame = 64;
-		}
+		half_frame = 40;
 		break;
 	default:
 		return -EINVAL;
 	}
 
-
 	/* 
 	 * Clock Settings
-	 *
-	 * Integer mode:
-	 * All sampling rates that are multiples of 8000 kHz
-	 * can be driven by the oscillator of 19.2 MHz
-	 * with an integer divider.
-	 * The bit clock frequency is
+	 * 
+	 * The target frequency of the bit clock is
 	 * 	sampling rate * frame length
-	 * Therefore, the frame length has to be an integer divider
-	 * of 19200000/8000=2400 as set up above. 
+	 * 
+	 * Integer mode:
+	 * Sampling rates that are multiples of 8000 kHz
+	 * can be driven by the oscillator of 19.2 MHz
+	 * with an integer divider as long as the frame length 
+	 * is an integer divider of 19200000/8000=2400 as set up above. 
+	 * This is no longer possible if the sampling rate
+	 * is too high (e.g. 192 kHz), because the oscillator is too slow.
 	 *
 	 * MASH mode:
-	 * For all other frequencies, it is not possible to
+	 * For all other sampling rates, it is not possible to
 	 * have an integer divider. Approximate the clock
 	 * with the MASH module that induces a slight frequency
 	 * variance. To minimize that it is best to have the fastest
 	 * clock here. That is PLLD with 500 MHz.
 	 */
-	if(sampling_rate % 8000 == 0 && bit_master)
-	{
-		clk_src = BCM2708_CLK_SRC_OSC;
-		mash = BCM2708_CLK_MASH_0;
-		divi = bcm2708_clk_freq[clk_src]/(sampling_rate*half_frame*2);
+	target_frequency = sampling_rate*half_frame*2;
+	clk_src = BCM2708_CLK_SRC_OSC;
+	mash = BCM2708_CLK_MASH_0;
+
+	if(bcm2708_clk_freq[clk_src] % target_frequency == 0 && bit_master && frame_master) {
+		divi = bcm2708_clk_freq[clk_src]/target_frequency;
 		divf = 0;
 	}
-	else
-	{
+	else {
 		uint64_t dividend;
+
+		half_frame = data_length*2; /* overwrite half frame length, because the above trick is not needed */
+		target_frequency = sampling_rate*half_frame*2;
+
 		clk_src = BCM2708_CLK_SRC_PLLD;
 		mash = BCM2708_CLK_MASH_1;
 		
 		dividend = bcm2708_clk_freq[clk_src];
 		dividend *= 1024;
-		do_div(dividend, sampling_rate*half_frame*2);
+		do_div(dividend, target_frequency);
 		divi = dividend / 1024;
 		divf = dividend % 1024;
 	}
@@ -430,8 +422,7 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	/* Setup the frame format */
 	format = BCM2708_I2S_CHEN;
 
-	if(data_length > 24)
-	{
+	if(data_length > 24) {
 		format |= BCM2708_I2S_CHWEX;
 	}
 	format |= BCM2708_I2S_CHWID((data_length-8)&0xf);
@@ -448,10 +439,8 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	ch1pos = data_delay;
 	ch2pos = half_frame+data_delay;
-printk(KERN_EMERG "ch1pos %i ch2pos %i\n",ch1pos,ch2pos);
 
-	switch(params_channels(params))
-	{
+	switch(params_channels(params)) {
 	case 2:
 		format = BCM2708_I2S_CH1(format) | BCM2708_I2S_CH2(format);
 		format |= BCM2708_I2S_CH1(BCM2708_I2S_CHPOS(ch1pos));
@@ -461,32 +450,29 @@ printk(KERN_EMERG "ch1pos %i ch2pos %i\n",ch1pos,ch2pos);
 		return -EINVAL;
 	}
 
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) 
-	{
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 		bcm2708_i2s_write_reg(dev, BCM2708_I2S_RXC_A_REG, format);
 	}
-	else
-	{
+	else {
 		bcm2708_i2s_write_reg(dev, BCM2708_I2S_TXC_A_REG, format);
 	}
 
  
 	/* Setup the I2S mode */
-	mode = bcm2708_i2s_read_reg(dev, BCM2708_I2S_MODE_A_REG);
+	mode = 0;
 
-	if(data_length <= 16)
-	{
+	if(data_length <= 16) {
+		mode = bcm2708_i2s_read_reg(dev, BCM2708_I2S_MODE_A_REG);
+
 		/* Use frame packed mode (2 channels per 32 bit word) */
-		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) 
-		{
+		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
 			/* preserve setting for other direction */
 			mode &= BCM2708_I2S_FTXP;
 
 			/* set for this direction */
 			mode |= BCM2708_I2S_FRXP;
 		}
-		else
-		{
+		else {
 			/* preserve setting for other direction */
 			mode &= BCM2708_I2S_FRXP;
 
@@ -645,15 +631,15 @@ static struct snd_soc_dai_driver bcm2708_i2s_dai = {
 	.playback = {
 		.channels_min = 2,
 		.channels_max = 2,
-		.rates = 	SNDRV_PCM_RATE_8000_96000,
-		.formats = 	SNDRV_PCM_FMTBIT_S16_LE},
-				// TODO 32 bit is implemented,
-				// but not tested
+		.rates = 	SNDRV_PCM_RATE_8000_192000,
+		.formats = 	SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S32_LE
+		},
 	.capture = {
 		.channels_min = 2,
 		.channels_max = 2,
-		.rates = 	SNDRV_PCM_RATE_8000_96000,
-		.formats = 	SNDRV_PCM_FMTBIT_S16_LE},
+		.rates = 	SNDRV_PCM_RATE_8000_192000,
+		.formats = 	SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S32_LE
+		},
 	.ops = &bcm2708_i2s_dai_ops,
 };
 
