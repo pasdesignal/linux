@@ -5,6 +5,7 @@ config SND_BCM2708_SOC
 	tristate "SoC Audio support for the Broadcom BCM2708 I2S module"
 	depends on MACH_BCM2708
 	select SND_SOC_DMAENGINE_PCM
+	select DMA_BCM2708
 	select SND_SOC_GENERIC_DMAENGINE_PCM
 	help
 	  Say Y or M if you want to add support for codecs attached to
