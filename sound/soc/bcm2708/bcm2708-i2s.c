@@ -17,6 +17,10 @@
  * 	Contact: Jarkko Nikula <jarkko.nikula@bitmer.com>
  * 		 Peter Ujfalusi <peter.ujfalusi@ti.com>
  *
+ * 	Freescale SSI ALSA SoC Digital Audio Interface (DAI) driver
+ * 	Author: Timur Tabi <timur@freescale.com>
+ * 	Copyright 2007-2010 Freescale Semiconductor, Inc.
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -155,11 +159,13 @@ static const unsigned int bcm2708_clk_freq[BCM2708_CLK_SRC_HDMI+1] = {
 
 /* General device struct */
 struct bcm2708_i2s_dev {
-	struct device *dev;
-	struct bcm2708_pcm_dma_data	dma_params[2];
-	void __iomem			*i2s_base;
-	void __iomem			*clk_base;
-	unsigned int fmt;
+	struct device 				*dev;
+	struct bcm2708_pcm_dma_data		dma_params[2];
+	void __iomem				*i2s_base;
+	void __iomem				*clk_base;
+	unsigned int 				fmt;
+	struct snd_pcm_substream 		*first_stream;
+	struct snd_pcm_substream 		*second_stream;
 };
 
 static inline void bcm2708_i2s_write_reg(struct bcm2708_i2s_dev *dev,
@@ -211,13 +217,11 @@ static void bcm2708_i2s_stop_clock(struct bcm2708_i2s_dev *dev)
 
 	/* wait for the BUSY flag going down */
 	while((bcm2708_clk_read_reg(dev, BCM2708_CLK_PCMCTL_REG) & BCM2708_CLK_BUSY) 
-			&& timeout > 0)
-	{ 
+			&& timeout > 0) { 
 		timeout--;
 	}
 
-	if(timeout <= 0)
-	{
+	if(timeout <= 0) {
 		/* KILL the clock */
 		dev_err(dev->dev, "I2S clock didn't stop. Kill the clock!\n");
 		bcm2708_clk_write_reg(dev, BCM2708_CLK_PCMCTL_REG, BCM2708_CLK_KILL 
@@ -225,20 +229,18 @@ static void bcm2708_i2s_stop_clock(struct bcm2708_i2s_dev *dev)
 	}
 }
 
-static void bcm2708_i2s_clear_fifo(struct bcm2708_i2s_dev *dev,
-		struct snd_pcm_substream *substream)
+static void bcm2708_i2s_clear_fifos(struct bcm2708_i2s_dev *dev)
 {
 	int timeout = 1000000;
 
-	/* clear the FIFO - requires at least 2 PCM clock cycles to take effect*/
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) 
-	{
-        	bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_RXCLR);
-	}
-	else
-	{
-        	bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_TXCLR);
-	}
+	/* Backup the current state */
+	unsigned int active_state = bcm2708_i2s_read_reg(dev,BCM2708_I2S_CS_A_REG) & (BCM2708_I2S_RXON | BCM2708_I2S_TXON | BCM2708_I2S_EN);
+
+	/* Stop I2S module */
+	bcm2708_i2s_clear_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_RXON | BCM2708_I2S_TXON | BCM2708_I2S_EN);
+
+	/* clear the FIFOs - requires at least 2 PCM clock cycles to take effect*/
+        bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_RXCLR | BCM2708_I2S_TXCLR);
 	
 	/* Wait for 2 PCM clock cycles */
 
@@ -249,64 +251,70 @@ static void bcm2708_i2s_clear_fifo(struct bcm2708_i2s_dev *dev,
 	bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_SYNC);
 
 	/* Wait for the SYNC flag going up */
-	while(!(bcm2708_clk_read_reg(dev, BCM2708_I2S_CS_A_REG) & BCM2708_I2S_SYNC)
-			&& timeout > 0)
-	{ 
+	while(((bcm2708_clk_read_reg(dev, BCM2708_I2S_CS_A_REG) & BCM2708_I2S_SYNC) == 0)
+			&& timeout > 0) { 
 		timeout--;
 	}
 
-	if(timeout <= 0)
-	{
+	if(timeout <= 0) {
 		dev_err(dev->dev, "I2S SYNC error!\n");
 	}
+
+	/* Restore I2S state */
+	bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, active_state);
 }
 
 static void bcm2708_i2s_start(struct bcm2708_i2s_dev *dev,
 		struct snd_pcm_substream *substream)
 {
+	unsigned int enabled = bcm2708_i2s_read_reg(dev,BCM2708_I2S_CS_A_REG) & BCM2708_I2S_EN;
+
 	/* 
-	 * Start the clock if in master mode.
-	 * If it is already running nothing happens.
-	 * TODO Needs testing: Is no clock in slave mode ok?
+	 * Start the clock if in master mode and no other stream is running.
 	 */
 	unsigned int master = dev->fmt & SND_SOC_DAIFMT_MASTER_MASK;
-	if(master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBS_CFM)
-	{
+	if((master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBS_CFM) && !enabled) {
 		unsigned int clkreg = bcm2708_clk_read_reg(dev, BCM2708_CLK_PCMCTL_REG);
 		bcm2708_clk_write_reg(dev, BCM2708_CLK_PCMCTL_REG, BCM2708_CLK_PASSWD
 				| clkreg
 				| BCM2708_CLK_ENAB);
 	}
 
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) 
-	{
+	/*
+	 * Enable the stream.
+	 */
+	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
         	bcm2708_i2s_set_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_RXON);
 	}
-	else
-	{
+	else {
         	bcm2708_i2s_set_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_TXON);
 	}
+        
+	if(!enabled)
+		bcm2708_i2s_set_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_EN);
 }
 
 static void bcm2708_i2s_stop(struct bcm2708_i2s_dev *dev,
 		struct snd_pcm_substream *substream)
 {
-	if(substream->stream == SNDRV_PCM_STREAM_CAPTURE)
-	{
+	unsigned int still_running;
+
+	if(substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
         	bcm2708_i2s_clear_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_RXON);
 	}
-	else
-	{
+	else {
         	bcm2708_i2s_clear_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_TXON);
 	}
 
-	/* Check if both streams are deactivated and not SND_SOC_DAIFMT_CONT */
-	if(((bcm2708_i2s_read_reg(dev,BCM2708_I2S_CS_A_REG) 
-				& (BCM2708_I2S_TXON | BCM2708_I2S_RXON)) == 0)
-				&& !(dev->fmt & SND_SOC_DAIFMT_CONT))
-	{
+	still_running = bcm2708_i2s_read_reg(dev,BCM2708_I2S_CS_A_REG) & (BCM2708_I2S_TXON | BCM2708_I2S_RXON);
+
+	if(!still_running)
+		bcm2708_i2s_clear_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_EN);
+
+	/* Stop also the clock when not SND_SOC_DAIFMT_CONT */
+	if(!still_running && !(dev->fmt & SND_SOC_DAIFMT_CONT))
 		bcm2708_i2s_stop_clock(dev);
-	}
+
 }
 
 static int bcm2708_i2s_set_dai_fmt(struct snd_soc_dai *dai,
@@ -333,14 +341,37 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 	unsigned int bit_master = (master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBS_CFM);
 	unsigned int frame_master = (master == SND_SOC_DAIFMT_CBS_CFS || master == SND_SOC_DAIFMT_CBM_CFS);
 
-	/* should this still be running stop it */
-	bcm2708_i2s_stop_clock(dev);
 
-	/* enable PCM block */
-        bcm2708_i2s_set_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_EN);
+	/* Ensure, that both streams have the same settings */
+	struct snd_pcm_substream *other_stream = dev->first_stream;
+	if (other_stream == substream)
+		other_stream = dev->second_stream;
 
-	/* disable STBY - requires at least 4 PCM clock cycles to take effect */
-        bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_STBY);
+	if (other_stream != NULL) {
+		if (other_stream->runtime->format && (other_stream->runtime->format != params_format(params))) {
+			dev_err(dev->dev, "Sample formats of streams are different. %i (%s) != %i (%s) Initialization failed!\n",
+				other_stream->runtime->format,
+				(other_stream->stream == SNDRV_PCM_STREAM_PLAYBACK ? "playback" : "capture"),
+				params_format(params),
+				(substream->stream == SNDRV_PCM_STREAM_PLAYBACK ? "playback" : "capture"));
+			return -EINVAL;
+		}
+
+		if (other_stream->runtime->rate && (other_stream->runtime->rate != params_rate(params))) {
+			dev_err(dev->dev, "Sampling rates of streams are different. %i (%s) != %i (%s) Initialization failed!\n",
+				other_stream->runtime->rate,
+				(other_stream->stream == SNDRV_PCM_STREAM_PLAYBACK ? "playback" : "capture"),
+				params_rate(params),
+				(substream->stream == SNDRV_PCM_STREAM_PLAYBACK ? "playback" : "capture"));
+			return -EINVAL;
+		}
+	}
+
+	/*
+	 * If the module is already enabled, the registers are already set properly.
+	 */
+	if(bcm2708_i2s_read_reg(dev,BCM2708_I2S_CS_A_REG) & BCM2708_I2S_EN)
+		return 0;
 
 	/*
 	 * Adjust the data length according to the format.
@@ -450,35 +481,25 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 		return -EINVAL;
 	}
 
-	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		bcm2708_i2s_write_reg(dev, BCM2708_I2S_RXC_A_REG, format);
-	}
-	else {
-		bcm2708_i2s_write_reg(dev, BCM2708_I2S_TXC_A_REG, format);
-	}
+	/* 
+	 * Set format for both streams.
+	 * We cannot set another frame length (and therefore word length) anyway, 
+	 * so the format will be the same.
+	 */ 
+	bcm2708_i2s_write_reg(dev, BCM2708_I2S_RXC_A_REG, format);
+	bcm2708_i2s_write_reg(dev, BCM2708_I2S_TXC_A_REG, format);
 
  
 	/* Setup the I2S mode */
 	mode = 0;
 
 	if(data_length <= 16) {
-		mode = bcm2708_i2s_read_reg(dev, BCM2708_I2S_MODE_A_REG);
-
-		/* Use frame packed mode (2 channels per 32 bit word) */
-		if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-			/* preserve setting for other direction */
-			mode &= BCM2708_I2S_FTXP;
-
-			/* set for this direction */
-			mode |= BCM2708_I2S_FRXP;
-		}
-		else {
-			/* preserve setting for other direction */
-			mode &= BCM2708_I2S_FRXP;
-
-			/* set for this direction */
-			mode |= BCM2708_I2S_FTXP;
-		}
+		/*
+		 * Use frame packed mode (2 channels per 32 bit word)
+	 	 * We cannot set another frame length (and therefore word length) anyway, 
+		 * so the format will be the same.
+		 */ 
+		mode |= BCM2708_I2S_FTXP | BCM2708_I2S_FRXP;
 	}
 
 	mode |= BCM2708_I2S_FLEN(half_frame*2-1);
@@ -561,7 +582,7 @@ static int bcm2708_i2s_prepare(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
 	struct bcm2708_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
-	bcm2708_i2s_clear_fifo(dev, substream);
+	bcm2708_i2s_clear_fifos(dev);
 	return 0;
 }
 
@@ -592,7 +613,77 @@ static int bcm2708_i2s_startup(struct snd_pcm_substream *substream,
 			       struct snd_soc_dai *dai)
 {
 	struct bcm2708_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
+
+	if(!dev->first_stream)
+	{
+		dev->first_stream = substream;
+
+		/* should this still be running stop it */
+		bcm2708_i2s_stop_clock(dev);
+
+		/* disable PCM block to write to the registers */
+		bcm2708_i2s_clear_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_EN);
+
+		/* disable STBY - requires at least 4 PCM clock cycles to take effect */
+		bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_STBY);
+	}
+	else
+	{
+		struct snd_pcm_runtime *first_runtime = dev->first_stream->runtime;
+
+		/*
+		 * This is the second stream open, so we need to impose 
+		 * sample size and sampling rate constraints. 
+		 * This is because frame length and clock cannot be specified
+		 * seperately.
+		 *
+		 * Note that this can cause a race condition if the
+		 * second stream is opened before the first stream is
+		 * fully initialized.  We provide some protection by
+		 * checking to make sure the first stream is
+		 * initialized, but it's not perfect.  ALSA sometimes
+		 * re-initializes the driver with a different sample
+		 * rate or size.  If the second stream is opened
+		 * before the first stream has received its final
+		 * parameters, then the second stream may be
+		 * constrained to the wrong sample rate or size.
+		 *
+		 * We will continue in case of failure and recheck the 
+		 * constraint in hw_params.
+		 */
+		if (!first_runtime->format) {
+			dev_err(substream->pcm->card->dev,
+					"Set format in %s stream first! Initialization may fail.\n",
+					substream->stream ==
+					SNDRV_PCM_STREAM_PLAYBACK
+					? "capture" : "playback");
+		}
+		else {
+			snd_pcm_hw_constraint_minmax(substream->runtime,
+					SNDRV_PCM_HW_PARAM_FORMAT,
+					first_runtime->format,
+					first_runtime->format);
+		}
+
+		if (!first_runtime->rate) {
+			dev_err(substream->pcm->card->dev,
+					"Set sampling rate in %s stream first! Initialization may fail!\n",
+					substream->stream ==
+					SNDRV_PCM_STREAM_PLAYBACK
+					? "capture" : "playback");
+		}
+		else {
+			snd_pcm_hw_constraint_minmax(substream->runtime,
+					SNDRV_PCM_HW_PARAM_RATE,
+					first_runtime->rate,
+					first_runtime->rate);
+		}
+
+		dev->second_stream = substream;
+	}
+
 	snd_soc_dai_set_dma_data(dai, substream, &dev->dma_params[substream->stream]);
+
 	return 0;
 }
 
@@ -603,10 +694,13 @@ static void bcm2708_i2s_shutdown(struct snd_pcm_substream *substream,
 
 	bcm2708_i2s_stop(dev, substream);
 
+	if (dev->first_stream == substream)
+		dev->first_stream = dev->second_stream;
+
+	dev->second_stream = NULL;
+
 	/* If both streams are stopped, disable module and clock */
-	if((bcm2708_i2s_read_reg(dev,BCM2708_I2S_CS_A_REG) 
-				& (BCM2708_I2S_TXON | BCM2708_I2S_RXON)) == 0)
-	{
+	if (!dev->first_stream) {
 		/* Disable the module */
         	bcm2708_i2s_clear_bits(dev,BCM2708_I2S_CS_A_REG, BCM2708_I2S_EN);
 
