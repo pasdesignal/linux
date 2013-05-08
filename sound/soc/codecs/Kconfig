@@ -39,6 +39,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_DA732X if I2C
 	select SND_SOC_DA9055 if I2C
 	select SND_SOC_DFBMCS320
+	select SND_SOC_ESS9018
 	select SND_SOC_ISABELLE if I2C
 	select SND_SOC_JZ4740_CODEC
 	select SND_SOC_LM4857 if I2C
@@ -236,6 +237,9 @@ config SND_SOC_CS4271
 	tristate
 
 config SND_SOC_CX20442
+	tristate
+
+config SND_SOC_ESS9018
 	tristate
 
 config SND_SOC_JZ4740_CODEC
