@@ -42,50 +42,16 @@ static int ess9018_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_driver ess9018_driver = {
-	.driver = {
-		.name = "ess9018-codec",
-		.owner = THIS_MODULE,
+static struct platform_driver ess9018_codec_driver = {
+	.probe 		= ess9018_probe,
+	.remove 	= ess9018_remove,
+	.driver		= {
+		.name	= "ess9018-codec",
+		.owner	= THIS_MODULE,
 	},
-	.probe = ess9018_probe,
-	.remove = ess9018_remove,
 };
 
-/*
- * Register driver and device
- *
- * TODO This is not the best solution, but it is ok for now.
- * 	Later this should be handled by the device tree.
- */
-
-static struct platform_device *pdev;
-
-static const struct platform_device_info ess9018_dev_info = {
-	.name = "ess9018-codec",
-	.id = -1,
-};
-
-static int ess9018_init(void)
-{
-	int rc = platform_driver_register(&ess9018_driver);
-
-	if (rc == 0) {
-		pdev = platform_device_register_full(&ess9018_dev_info);
-		if (IS_ERR(pdev)) {
-			platform_driver_unregister(&ess9018_driver);
-			rc = PTR_ERR(pdev);
-		}
-	}
-	return rc;
-}
-subsys_initcall(ess9018_init);
-
-static void __exit ess9018_exit(void)
-{
-	platform_device_unregister(pdev);
-	platform_driver_unregister(&ess9018_driver);
-}
-module_exit(ess9018_exit);
+module_platform_driver(ess9018_codec_driver);
 
 MODULE_AUTHOR("Florian Meier <koalo@koalo.de>");
 MODULE_DESCRIPTION("ASoC ESS9018 codec driver");
