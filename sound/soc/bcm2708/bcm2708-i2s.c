@@ -743,6 +743,7 @@ static struct snd_soc_dai_driver bcm2708_i2s_dai = {
 		.formats = 	SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S32_LE
 		},
 	.ops = &bcm2708_i2s_dai_ops,
+	.symmetric_rates = 1
 };
 
 static void bcm2708_i2s_setup_gpio(void)
