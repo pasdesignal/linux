@@ -250,12 +250,25 @@ static void bcm2708_i2s_stop_clock(struct bcm2708_i2s_dev *dev)
 
 static void bcm2708_i2s_clear_fifos(struct bcm2708_i2s_dev *dev)
 {
-	int timeout = 1000000;
+	int timeout = 1000;
+	unsigned int syncval;
 
 	/* Backup the current state */
-	unsigned int active_state = bcm2708_i2s_read_reg(dev,
+	unsigned int i2s_active_state = bcm2708_i2s_read_reg(dev,
 			BCM2708_I2S_CS_A_REG) 
 			& (BCM2708_I2S_RXON | BCM2708_I2S_TXON);
+
+	unsigned int clk_active_state = bcm2708_clk_read_reg(dev,
+			BCM2708_CLK_PCMCTL_REG) & BCM2708_CLK_ENAB;
+
+	/* Start clock if not running */
+	if(!clk_active_state)
+	{
+		unsigned int clkreg = bcm2708_clk_read_reg(dev, 
+				BCM2708_CLK_PCMCTL_REG);
+		bcm2708_clk_write_reg(dev, BCM2708_CLK_PCMCTL_REG, 
+				BCM2708_CLK_PASSWD | clkreg | BCM2708_CLK_ENAB);
+	}
 
 	/* Stop I2S module */
 	bcm2708_i2s_clear_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_RXON 
@@ -271,14 +284,18 @@ static void bcm2708_i2s_clear_fifos(struct bcm2708_i2s_dev *dev)
 	/* Wait for 2 PCM clock cycles */
 
 	/*
-	 * Set the SYNC flag - after 2 PCM clock cycles it will be read as high
-	 * FIXME: This does not seem to work!
+	 * Toggle the SYNC flag - after 2 PCM clock cycles it can be read back
+	 * FIXME: This does not seem to work for slave mode!
 	 */
-	bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_SYNC);
+	syncval = bcm2708_i2s_read_reg(dev, BCM2708_I2S_CS_A_REG) & BCM2708_I2S_SYNC;
+	if(syncval)
+		bcm2708_i2s_clear_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_SYNC);
+	else	
+		bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, BCM2708_I2S_SYNC);
 
-	/* Wait for the SYNC flag going up */
-	while (((bcm2708_clk_read_reg(dev, BCM2708_I2S_CS_A_REG) 
-					& BCM2708_I2S_SYNC) == 0)
+	/* Wait for the SYNC flag changing it's state */
+	while (((bcm2708_i2s_read_reg(dev, BCM2708_I2S_CS_A_REG) 
+					& BCM2708_I2S_SYNC) == syncval)
 			&& timeout > 0) { 
 		timeout--;
 	}
@@ -287,8 +304,12 @@ static void bcm2708_i2s_clear_fifos(struct bcm2708_i2s_dev *dev)
 		dev_err(dev->dev, "I2S SYNC error!\n");
 	}
 
+	/* Stop clock if it was not running before */
+	if(!clk_active_state)
+		bcm2708_i2s_stop_clock(dev);
+
 	/* Restore I2S state */
-	bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, active_state);
+	bcm2708_i2s_set_bits(dev, BCM2708_I2S_CS_A_REG, i2s_active_state);
 }
 
 static void bcm2708_i2s_start(struct bcm2708_i2s_dev *dev,
@@ -631,6 +652,9 @@ static int bcm2708_i2s_hw_params(struct snd_pcm_substream *substream,
 			| BCM2708_I2S_TX(0x30)
 			| BCM2708_I2S_RX(0x20));
 
+	/* Clear FIFOs */
+	bcm2708_i2s_clear_fifos(dev);
+
 	return 0;
 }
 
@@ -639,10 +663,28 @@ static int bcm2708_i2s_prepare(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
 	struct bcm2708_i2s_dev *dev = snd_soc_dai_get_drvdata(dai);
+	unsigned int cs_reg;
 
 	bcm2708_i2s_start_clock(dev);
 
-	bcm2708_i2s_clear_fifos(dev);
+	/*
+	 * Clear both FIFOs if the one that should be started
+	 * is not empty at the moment. This should only happen
+	 * after overrun. Otherwise, hw_params would have cleared
+	 * the FIFO.
+	 */
+	cs_reg = bcm2708_i2s_read_reg(dev, BCM2708_I2S_CS_A_REG);
+
+	switch (substream->stream) {
+	case SNDRV_PCM_STREAM_PLAYBACK:
+		if (cs_reg & BCM2708_I2S_TXE)
+			break;
+	case SNDRV_PCM_STREAM_CAPTURE:
+		if (!(cs_reg & BCM2708_I2S_RXD))
+			break;
+
+		bcm2708_i2s_clear_fifos(dev);
+	}
 
 	return 0;
 }
