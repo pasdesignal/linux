@@ -49,7 +49,8 @@ static int snd_rpi_proto_hw_params(struct snd_pcm_substream *substream,
 	int ret = snd_soc_dai_set_sysclk(codec_dai, WM8731_SYSCLK_XTAL,
 		sysclk, SND_SOC_CLOCK_IN);
 	if (ret < 0) {
-		dev_err(substream->pcm->dev, "Failed to set WM8731 SYSCLK: %d\n", ret);
+		dev_err(substream->pcm->dev,
+				"Failed to set WM8731 SYSCLK: %d\n", ret);
 		return ret;
 	}
 
@@ -92,7 +93,8 @@ static int snd_rpi_proto_probe(struct platform_device *pdev)
 	ret = snd_soc_register_card(&snd_rpi_proto);
 	if (ret)
         {
-		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
+		dev_err(&pdev->dev,
+				"snd_soc_register_card() failed: %d\n", ret);
         }
 
 	return ret;
@@ -116,6 +118,6 @@ static struct platform_driver snd_rpi_proto_driver = {
 module_platform_driver(snd_rpi_proto_driver);
 
 MODULE_AUTHOR("Florian Meier");
-MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to PROTO board with WM8731 codec");
+MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to PROTO board (WM8731)");
 MODULE_LICENSE("GPL");
 

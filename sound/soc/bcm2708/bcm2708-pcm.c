@@ -47,8 +47,6 @@ static const struct snd_pcm_hardware bcm2708_pcm_hardware = {
 	.buffer_bytes_max	= 128 * 1024,
 };
 
-
-/* this may get called several times by oss emulation */
 static int bcm2708_pcm_hw_params(struct snd_pcm_substream *substream,
 			      struct snd_pcm_hw_params *params)
 {
@@ -62,8 +60,10 @@ static int bcm2708_pcm_hw_params(struct snd_pcm_substream *substream,
 	/* get DMA data (e.g. FIFO address and DREQ) */
 	dma_data = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
 
-	/* return - there seems to be no use for bufferless
-	 * transfer with this SoC */
+	/* 
+	 * There seems to be no use for bufferless
+	 * transfer with this SoC.
+	 */
 	if (!dma_data)
 		return 0;
 
@@ -128,7 +128,8 @@ static int bcm2708_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 	return ret;
 }
 
-static snd_pcm_uframes_t bcm2708_pcm_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t bcm2708_pcm_pointer(
+		struct snd_pcm_substream *substream)
 {
 	return snd_dmaengine_pcm_pointer(substream);
 }

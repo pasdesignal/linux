@@ -35,7 +35,7 @@ static int snd_rpi_mbed_hw_params(struct snd_pcm_substream *substream,
 	sysclk = 12000000; /* this is fixed on this board */
 
 	/* set tlv320aic23 sysclk */
-	snd_soc_dai_set_sysclk(codec_dai, 0 /* does not care for tlv320aic23 */, sysclk, 0);
+	snd_soc_dai_set_sysclk(codec_dai, 0, sysclk, 0);
 
 	return 0;
 }
@@ -75,7 +75,8 @@ static int snd_rpi_mbed_probe(struct platform_device *pdev)
 	ret = snd_soc_register_card(&snd_rpi_mbed);
 	if (ret)
         {
-		dev_err(&pdev->dev, "snd_soc_register_card() failed: %d\n", ret);
+		dev_err(&pdev->dev,
+				"snd_soc_register_card() failed: %d\n", ret);
         }
 
 	return ret;
@@ -99,6 +100,6 @@ static struct platform_driver snd_rpi_mbed_driver = {
 module_platform_driver(snd_rpi_mbed_driver);
 
 MODULE_AUTHOR("Florian Meier");
-MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to AudioCODEC for mbed");
+MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to mbed AudioCODEC");
 MODULE_LICENSE("GPL");
 
