@@ -20,14 +20,6 @@ config SND_BCM2708_SOC_RPI_CODEC_MBED
 	help
 	  Say Y if you want to add support for AudioCODEC for mbed (TLV320AIC32B)
 
-config SND_BCM2708_SOC_RPI_CODEC_TDA1541A
-	tristate "Support for TDA1541A"
-	depends on SND_BCM2708_SOC
-	select SND_BCM2708_SOC_I2S
-	select SND_SOC_TDA1541A
-	help
-	  Say Y if you want to add support for TDA1541A
-
 config SND_BCM2708_SOC_RPI_CODEC_PROTO
 	tristate "Support for Audio Codec Board - PROTO (WM8731)"
 	depends on SND_BCM2708_SOC
@@ -35,11 +27,3 @@ config SND_BCM2708_SOC_RPI_CODEC_PROTO
 	select SND_SOC_WM8731
 	help
 	  Say Y if you want to add support for Audio Codec Board - PROTO (WM8731)
-
-config SND_BCM2708_SOC_RPI_CODEC_ESS9018
-	tristate "Support for ESS9018"
-	depends on SND_BCM2708_SOC
-	select SND_BCM2708_SOC_I2S
-	select SND_SOC_ESS9018
-	help
-	  Say Y if you want to add support for ESS9018

@@ -3,7 +3,7 @@
  * connected to a Raspberry Pi
  *
  * Author:      Florian Meier, <koalo@koalo.de>
- *              Copyright 2013
+ *	      Copyright 2013
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -80,9 +80,9 @@ static struct snd_soc_dai_link snd_rpi_proto_dai[] = {
 
 /* audio machine driver */
 static struct snd_soc_card snd_rpi_proto = {
-	.name         	= "snd_rpi_proto",
-	.dai_link     	= snd_rpi_proto_dai,
-	.num_links    	= ARRAY_SIZE(snd_rpi_proto_dai),
+	.name		= "snd_rpi_proto",
+	.dai_link	= snd_rpi_proto_dai,
+	.num_links	= ARRAY_SIZE(snd_rpi_proto_dai),
 };
 
 static int snd_rpi_proto_probe(struct platform_device *pdev)
@@ -91,11 +91,10 @@ static int snd_rpi_proto_probe(struct platform_device *pdev)
 
 	snd_rpi_proto.dev = &pdev->dev;
 	ret = snd_soc_register_card(&snd_rpi_proto);
-	if (ret)
-        {
+	if (ret) {
 		dev_err(&pdev->dev,
 				"snd_soc_register_card() failed: %d\n", ret);
-        }
+	}
 
 	return ret;
 }
@@ -107,12 +106,12 @@ static int snd_rpi_proto_remove(struct platform_device *pdev)
 }
 
 static struct platform_driver snd_rpi_proto_driver = {
-        .driver = {
-                .name   = "snd-rpi-proto",
-                .owner  = THIS_MODULE,
-        },
-        .probe          = snd_rpi_proto_probe,
-        .remove         = snd_rpi_proto_remove,
+	.driver = {
+		.name   = "snd-rpi-proto",
+		.owner  = THIS_MODULE,
+	},
+	.probe	  = snd_rpi_proto_probe,
+	.remove	 = snd_rpi_proto_remove,
 };
 
 module_platform_driver(snd_rpi_proto_driver);
