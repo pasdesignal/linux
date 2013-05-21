@@ -90,4 +90,3 @@ module_platform_driver(snd_rpi_tda1541a_driver);
 MODULE_AUTHOR("Florian Meier");
 MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to a TDA1541A");
 MODULE_LICENSE("GPL");
-

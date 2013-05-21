@@ -90,4 +90,3 @@ module_platform_driver(snd_rpi_ess9018_driver);
 MODULE_AUTHOR("Florian Meier");
 MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to a ESS9018");
 MODULE_LICENSE("GPL");
-

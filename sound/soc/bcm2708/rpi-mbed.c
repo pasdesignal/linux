@@ -1,5 +1,5 @@
 /*
- * ASoC driver for mbed AudioCODEC (with a TLV320AIC23b) 
+ * ASoC driver for mbed AudioCODEC (with a TLV320AIC23b)
  * connected to a Raspberry Pi
  *
  * Author:      Florian Meier, <koalo@koalo.de>
@@ -102,4 +102,3 @@ module_platform_driver(snd_rpi_mbed_driver);
 MODULE_AUTHOR("Florian Meier");
 MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to mbed AudioCODEC");
 MODULE_LICENSE("GPL");
-

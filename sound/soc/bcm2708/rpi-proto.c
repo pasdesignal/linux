@@ -1,5 +1,5 @@
 /*
- * ASoC driver for PROTO AudioCODEC (with a WM8731) 
+ * ASoC driver for PROTO AudioCODEC (with a WM8731)
  * connected to a Raspberry Pi
  *
  * Author:      Florian Meier, <koalo@koalo.de>
@@ -71,7 +71,7 @@ static struct snd_soc_dai_link snd_rpi_proto_dai[] = {
 	.codec_dai_name	= "wm8731-hifi",
 	.platform_name	= "bcm2708-pcm-audio.0",
 	.codec_name	= "wm8731.1-001a",
-	.dai_fmt	= SND_SOC_DAIFMT_I2S 
+	.dai_fmt	= SND_SOC_DAIFMT_I2S
 				| SND_SOC_DAIFMT_NB_NF
 				| SND_SOC_DAIFMT_CBM_CFM,
 	.ops		= &snd_rpi_proto_ops,
@@ -120,4 +120,3 @@ module_platform_driver(snd_rpi_proto_driver);
 MODULE_AUTHOR("Florian Meier");
 MODULE_DESCRIPTION("ASoC Driver for Raspberry Pi connected to PROTO board (WM8731)");
 MODULE_LICENSE("GPL");
-

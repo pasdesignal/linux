@@ -14,4 +14,3 @@ obj-$(CONFIG_SND_BCM2708_SOC_RPI_CODEC_MBED) += snd-soc-rpi-mbed.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_CODEC_TDA1541A) += snd-soc-rpi-tda1541a.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_CODEC_PROTO) += snd-soc-rpi-proto.o
 obj-$(CONFIG_SND_BCM2708_SOC_RPI_CODEC_ESS9018) += snd-soc-rpi-ess9018.o
-

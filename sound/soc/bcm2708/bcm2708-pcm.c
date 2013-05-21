@@ -4,7 +4,7 @@
  * Author:      Florian Meier, <koalo@koalo.de>
  *              Copyright 2013
  *
- * based on 
+ * based on
  * 	ALSA PCM interface for the OMAP SoC
  * 	Copyright (C) 2008 Nokia Corporation
  * 	Contact: Jarkko Nikula <jarkko.nikula@bitmer.com>
@@ -15,7 +15,7 @@
  * published by the Free Software Foundation.
  *
  * TODO This should be transferred to the generic DMA engine driver
- * 	as soon as the official BCM2708 kernel migrates to 3.10. 
+ * 	as soon as the official BCM2708 kernel migrates to 3.10.
  */
 
 #include <linux/dma-mapping.h>
@@ -60,7 +60,7 @@ static int bcm2708_pcm_hw_params(struct snd_pcm_substream *substream,
 	/* get DMA data (e.g. FIFO address and DREQ) */
 	dma_data = snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
 
-	/* 
+	/*
 	 * There seems to be no use for bufferless
 	 * transfer with this SoC.
 	 */
@@ -78,7 +78,7 @@ static int bcm2708_pcm_hw_params(struct snd_pcm_substream *substream,
 	err = snd_hwparams_to_dma_slave_config(substream, params, &config.cfg);
 	if (err)
 		return err;
-	
+
 	/* Override the *_dma addr_width if requested by the DAI driver */
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		config.cfg.dst_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
@@ -290,4 +290,3 @@ MODULE_AUTHOR("Florian Meier");
 MODULE_DESCRIPTION("BCM2708 PCM DMA module");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("platform:bcm2708-pcm-audio");
-
