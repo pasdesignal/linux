@@ -20,21 +20,21 @@
 
 #include "../codecs/wm8731.h"
 
-static const unsigned int wm8731_rates_12288000[] = {
+static const unsigned int wm8731_rates_11289600[] = {
 	8000, 32000, 48000, 96000,
 };
 
-static struct snd_pcm_hw_constraint_list wm8731_constraints_12288000 = {
-	.list = wm8731_rates_12288000,
-	.count = ARRAY_SIZE(wm8731_rates_12288000),
+static struct snd_pcm_hw_constraint_list wm8731_constraints_11289600 = {
+	.list = wm8731_rates_11289600,
+	.count = ARRAY_SIZE(wm8731_rates_11289600),
 };
 
 static int snd_rpi_proto_startup(struct snd_pcm_substream *substream)
 {
-	/* Setup constraints, because there is a 12.288 MHz XTAL on the board */
+	/* Setup constraints, because there is a 11.2896 MHz XTAL on the board */
 	snd_pcm_hw_constraint_list(substream->runtime, 0,
 				SNDRV_PCM_HW_PARAM_RATE,
-				&wm8731_constraints_12288000);
+				&wm8731_constraints_11289600);
 	return 0;
 }
 
@@ -43,7 +43,7 @@ static int snd_rpi_proto_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *codec_dai = rtd->codec_dai;
-	int sysclk = 12288000; /* This is fixed on this board */
+	int sysclk = 11289600; /* This is fixed on this board */
 
 	/* Set proto sysclk */
 	int ret = snd_soc_dai_set_sysclk(codec_dai, WM8731_SYSCLK_XTAL,
